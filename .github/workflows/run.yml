@@ -1,1 +1,29 @@
+name: EGP Notice Scraper Daily
 
+on:
+  schedule:
+    - cron: '0 3 * * *' # প্রতিদিন বাংলাদেশ সময় সকাল ৯টায় রান করবে (UTC 3:00 = BST 9:00)
+  workflow_dispatch:
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Scraper Script
+        env:
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: |
+          python main.py
