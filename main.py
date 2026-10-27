@@ -6,7 +6,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 def scrape_egp_notices():
-    # Google Credentials Setup
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
     
@@ -18,7 +17,6 @@ def scrape_egp_notices():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     
-    # Google Sheet Name
     sheet_name = "EGP Notice Automation"
     try:
         spreadsheet = client.open(sheet_name)
@@ -26,7 +24,6 @@ def scrape_egp_notices():
         print(f"Error opening spreadsheet: {e}")
         return
 
-    # Map of Departments
     departments = {
         "PWD": "Public Works Department",
         "EED": "Education Engineering Department",
@@ -46,7 +43,6 @@ def scrape_egp_notices():
     for dept_code, dept_fullname in departments.items():
         print(f"Scraping notices for: {dept_code}...")
         try:
-            # Check or get worksheet
             try:
                 worksheet = spreadsheet.worksheet(dept_code)
             except gspread.exceptions.WorksheetNotFound:
@@ -58,20 +54,31 @@ def scrape_egp_notices():
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # শুধুমাত্র টেন্ডার লিস্টের টেবিল বা ডেটা রো খোঁজার জন্য সুনির্দিষ্ট ট্যাগ ফিল্টার
+                rows_added = 0
                 tables = soup.find_all('table')
                 
-                rows_added = 0
                 for table in tables:
+                    # মেনু টেবিলগুলো এড়িয়ে চলার জন্য চেক করা
+                    table_text = table.get_text()
+                    if "Home Page" in table_text and "View All Notifications" in table_text and len(table.find_all('tr')) < 3:
+                        continue
+                        
                     rows = table.find_all('tr')
                     for row in rows:
                         cols = [td.get_text(strip=True) for td in row.find_all('td')]
-                        if len(cols) >= 3:
-                            first_col = cols[0].lower()
-                            # ফিল্টার: মেনু বা হেডার টেক্সট বাদ দিয়ে শুধুমাত্র টেন্ডার আইডি বা প্রাসঙ্গিক সারি নেওয়া
-                            if any(keyword in first_col for keyword in ["etenders", "annual", "contracts", "advance", "go to", "search", "organization", "tender id", "home"]):
+                        # টেন্ডারের সারিগুলোতে সাধারণত একাধিক কলাম এবং সংখ্যাসূচক বা নির্দিষ্ট বড় ডেটা থাকে
+                        if len(cols) >= 4:
+                            row_string = " ".join(cols).lower()
+                            # মেনু বা নেভিগেশন কিওয়ার্ডগুলো বাদ দেওয়া
+                            if any(bad_word in row_string for bad_word in ["home page", "etenders", "annual procurement", "advance search", "view all notifications", "sitemap", "contact us"]):
                                 continue
                             
-                            # অতিরিক্ত যাচাই: টেন্ডার আইডিতে সংখ্যা বা নির্দিষ্ট ফরম্যাট থাকতে পারে
+                            # অতিরিক্ত ফিল্টার: যদি প্রথম কলামটি খুব ছোট বা ফাকা হয়
+                            if cols[0] == "" or len(cols[0]) < 3:
+                                continue
+                                
                             worksheet.append_row(cols[:5])
                             rows_added += 1
                 
