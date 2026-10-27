@@ -38,7 +38,7 @@ def scrape_egp_notices():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     }
 
-    base_url = "https://www.eprocure.gov.bd/resources/common/TenderList.jsp"
+    base_url = "https://eprocure.gov.bd/resources/common/TenderList.jsp"
 
     for dept_code, dept_fullname in departments.items():
         print(f"Scraping notices for: {dept_code}...")
