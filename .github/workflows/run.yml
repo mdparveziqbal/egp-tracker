@@ -2,7 +2,7 @@ name: EGP Notice Scraper Daily
 
 on:
   schedule:
-    - cron: '0 3 * * *' # প্রতিদিন বাংলাদেশ সময় সকাল ৯টায় রান করবে (UTC 3:00 = BST 9:00)
+    - cron: '0 3 * * *' # প্রতিদিন বাংলাদেশ সময় সকাল ৯টায় রান করবে
   workflow_dispatch:
 
 jobs:
