@@ -5,20 +5,20 @@ from bs4 import BeautifulSoup
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-def run_egp_scraper():
-    # Google Sheets API Authentication
+def scrape_egp_notices():
+    # Google Credentials Setup
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
     
     if not creds_json:
-        print("Error: GOOGLE_CREDENTIALS_JSON not found in environment variables.")
+        print("Error: GOOGLE_CREDENTIALS_JSON is missing.")
         return
 
     creds_dict = json.loads(creds_json)
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     
-    # আপনার গুগল শীটের নাম (যদি ভিন্ন হয় তবে পরিবর্তন করুন)
+    # Google Sheet Name
     sheet_name = "EGP Notice Automation"
     try:
         spreadsheet = client.open(sheet_name)
@@ -26,7 +26,7 @@ def run_egp_scraper():
         print(f"Error opening spreadsheet: {e}")
         return
 
-    # ৭টি নির্দিষ্ট ডিপার্টমেন্ট
+    # Map of Departments to Search Terms
     departments = {
         "PWD": "Public Works Department",
         "EED": "Education Engineering Department",
@@ -37,18 +37,50 @@ def run_egp_scraper():
         "BWDB": "Bangladesh Water Development Board"
     }
 
-    for dept_code, dept_name in departments.items():
-        print(f"Processing notices for: {dept_code} ({dept_name})")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
+
+    # e-GP Tender Search URL
+    base_url = "https://www.eprocure.gov.bd/resources/common/TenderList.jsp"
+
+    for dept_code, dept_fullname in departments.items():
+        print(f"Scraping notices for: {dept_code}...")
         try:
-            worksheet = spreadsheet.worksheet(dept_code)
+            # Check or get worksheet
+            try:
+                worksheet = spreadsheet.worksheet(dept_code)
+            except gspread.exceptions.WorksheetNotFound:
+                worksheet = spreadsheet.add_worksheet(title=dept_code, rows="100", cols="10")
+                worksheet.append_row(["Tender ID", "Ministry/Organization", "Title / Description", "Publish Date", "Closing Date"])
+
+            # Send Request to e-GP Search
+            params = {"agencyName": dept_code}
+            response = requests.get(base_url, headers=headers, params=params, timeout=15)
             
-            # এখানে ই-জিপি থেকে ডেটা ফেচ বা স্ক্র্যাপ করার লজিক যুক্ত হবে
-            # উদাহরণস্বরূপ একটি ডামি রো বা নোটিশ যুক্ত করার কোড:
-            # worksheet.append_row(["Tender ID", "Title", "Publish Date", "Closing Date"])
-            
-            print(f"Successfully updated tab for: {dept_code}")
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                table = soup.find('table', {'id': 'resultTable'}) or soup.find('table')
+                
+                rows_added = 0
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows[1:]:  # Skip header row
+                        cols = [td.get_text(strip=True) for td in row.find_all('td')]
+                        if len(cols) >= 4:
+                            # Append scraped row data to specific department tab
+                            worksheet.append_row(cols[:5])
+                            rows_added += 1
+                
+                if rows_added == 0:
+                    print(f"No new notices found for {dept_code} right now.")
+                else:
+                    print(f"Added {rows_added} notices to {dept_code} tab.")
+            else:
+                print(f"Failed to fetch data for {dept_code}, HTTP Status: {response.status_code}")
+
         except Exception as e:
             print(f"Error processing {dept_code}: {e}")
 
 if __name__ == "__main__":
-    run_egp_scraper()
+    scrape_egp_notices()
